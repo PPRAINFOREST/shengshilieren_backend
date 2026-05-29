@@ -1,0 +1,134 @@
+# 剩食猎人后端 - Docker Compose 配置
+# 包含后端服务、MySQL 数据库和 Redis 缓存
+
+services:
+  # ==================== 后端服务 ====================
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: food_saver_backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      # 数据库配置
+      - DATABASE_URL=mysql+pymysql://root:${MYSQL_ROOT_PASSWORD}@mysql:3306/food_saver_hunter
+      # Redis配置
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      # JWT配置
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=15
+      - REFRESH_TOKEN_EXPIRE_DAYS=7
+      # OSS配置（可选）
+      - OSS_ENABLED=${OSS_ENABLED:-false}
+      - OSS_ACCESS_KEY_ID=${OSS_ACCESS_KEY_ID:-}
+      - OSS_ACCESS_KEY_SECRET=${OSS_ACCESS_KEY_SECRET:-}
+      - OSS_BUCKET=${OSS_BUCKET:-}
+      - OSS_ENDPOINT=${OSS_ENDPOINT:-}
+      - OSS_DOMAIN=${OSS_DOMAIN:-}
+      # 本地上传（OSS关闭时使用）
+      - UPLOAD_DIR=/app/uploads
+    volumes:
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - food_saver_network
+
+  # ==================== MySQL 数据库 ====================
+  mysql:
+    image: mysql:8.0
+    container_name: food_saver_mysql
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-root123456}
+      - MYSQL_DATABASE=food_saver_hunter
+      - MYSQL_USER=${MYSQL_USER:-foodsaver}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-foodsaver123}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./scripts/init_database.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-root123456}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - food_saver_network
+
+  # ==================== Redis 缓存 ====================
+  redis:
+    image: redis:7-alpine
+    container_name: food_saver_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - food_saver_network
+
+  # ==================== Redis Commander（可选，Redis管理界面）====================
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: food_saver_redis_ui
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    depends_on:
+      - redis
+    networks:
+      - food_saver_network
+    profiles:
+      - tools  # 使用 docker-compose --profile tools 启动
+
+  # ==================== phpMyAdmin（可选，MySQL管理界面）====================
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: food_saver_phpmyadmin
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    environment:
+      - PMA_HOST=mysql
+      - PMA_PORT=3306
+      - PMA_USER=root
+      - PMA_PASSWORD=${MYSQL_ROOT_PASSWORD:-root123456}
+    depends_on:
+      - mysql
+    networks:
+      - food_saver_network
+    profiles:
+      - tools
+
+# ==================== 网络配置 ====================
+networks:
+  food_saver_network:
+    driver: bridge
+
+# ==================== 持久化卷 ====================
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
