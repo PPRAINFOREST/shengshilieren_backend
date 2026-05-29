@@ -144,11 +144,11 @@ pip install -r requirements.txt
 修改 `app/core/config.py` 中的数据库连接配置：
 
 ```python
-MYSQL_HOST = "localhost"
-MYSQL_PORT = 3306
-MYSQL_USER = "root"
-MYSQL_PASSWORD = "your_password"
-MYSQL_DATABASE = "food_saver_hunter"
+DB_HOST = "localhost"
+DB_PORT = 3306
+DB_USER = "root"
+DB_PASSWORD = "your_password"
+DB_NAME = "food_saver_hunter"
 ```
 
 ### 3. 初始化数据库
