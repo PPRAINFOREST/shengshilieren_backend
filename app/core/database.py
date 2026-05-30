@@ -9,7 +9,7 @@ from app.core.config import settings
 
 # 创建同步引擎
 engine = create_engine(
-    settings.DATABASE_URL,
+    settings.DATABASE_URL_COMPUTED,
     pool_pre_ping=True,
     pool_size=10,
     max_overflow=20,
