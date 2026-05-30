@@ -67,19 +67,4 @@ class Shop(Base):
         return f"<Shop {self.shop_name}>"
 
 
-class MerchantShop(Base):
-    """商家-店铺关联表（一个商家可以有多个店铺）"""
-    __tablename__ = "merchant_shops"
 
-    id = Column(Integer, primary_key=True, index=True)
-    merchant_id = Column(Integer, ForeignKey("merchants.id", ondelete="CASCADE"), nullable=False)
-    shop_id = Column(Integer, ForeignKey("shops.id", ondelete="CASCADE"), nullable=False)
-    is_primary = Column(Boolean, default=False)  # 是否主店铺
-    created_at = Column(DateTime, default=datetime.now)
-
-    # 关系
-    merchant = relationship("Merchant", back_populates="merchant_shops")
-    shop = relationship("Shop", back_populates="merchant_shops")
-
-
-    # 关系
