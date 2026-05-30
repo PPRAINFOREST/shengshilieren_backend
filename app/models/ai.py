@@ -37,8 +37,7 @@ class ScanAudit(Base):
     __tablename__ = "scan_audits"
 
     id = Column(Integer, primary_key=True, index=True)
-    scan_id = Column(Integer, ForeignKey("customer_scans.id"), nullable=False)
-    auditor_id = Column(Integer, ForeignKey("admins.id"))  # 审核员ID(管理员)
+    scan_id = Column(Integer, ForeignKey("user_scans.id"), nullable=False)
     audit_type = Column(
         Enum("ai", "manual", name="audit_type_enum"),
         default="ai"
@@ -53,7 +52,7 @@ class ScanAudit(Base):
     audited_at = Column(DateTime)
 
     # 关系
-    scan = relationship("CustomerScan")
+    scan = relationship("UserScan")
     verified_food = relationship("Food")
 
     def __repr__(self):
