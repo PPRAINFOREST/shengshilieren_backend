@@ -61,7 +61,7 @@ class Shop(Base):
     # 关系
     merchant = relationship("Merchant", back_populates="shops")
     shop_type = relationship("ShopType", back_populates="shops")
-    foods = relationship("ShopFood", back_populates="shop")
+    shop_foods = relationship("ShopFood", back_populates="shop")
 
     def __repr__(self):
         return f"<Shop {self.shop_name}>"
