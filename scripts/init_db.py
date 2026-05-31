@@ -194,7 +194,7 @@ def insert_sample_data():
                 id=2,
                 name="环保达人",
                 description="累计减碳5kg",
-                challenge_type="carbon_reduction",
+                challenge_type="carbon",
                 target=5.0,
                 unit="kg",
                 reward_points=200,
