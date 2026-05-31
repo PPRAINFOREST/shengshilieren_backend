@@ -72,6 +72,7 @@ class Food(Base):
     food_type = relationship("FoodType", back_populates="foods")
     shop_foods = relationship("ShopFood", back_populates="food")
     flavor_tags = relationship("FoodFlavorTag", back_populates="food")
+    behaviors = relationship("CustomerFoodBehavior", back_populates="food")
 
 
 class FoodFlavorTag(Base):
