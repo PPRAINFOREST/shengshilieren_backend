@@ -6,6 +6,8 @@
 """
 import sys
 import os
+import random
+from datetime import datetime, timedelta
 
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -16,7 +18,7 @@ from app.models.shop import Shop, ShopType
 from app.models.food import Food, FoodType, ShopFood
 from app.models.order import Order
 from app.models.scan import UserScan
-from app.models.points import HunterPoint
+from app.models.points import HunterPoint, PointSource, PointRule
 from app.models.challenge import Challenge, UserChallenge, Badge, UserBadge
 from app.models.notification import Notification
 from app.models.preference import (
@@ -26,13 +28,11 @@ from app.models.preference import (
 )
 from app.models.recommendation import (
     FoodRecommendation,
-    RecommendationFeedback
+    RecommendationFeedback,
+    CustomerFlavorPreference
 )
 from app.models.food import FoodFlavorTag
-from app.models.recommendation import CustomerFlavorPreference
 from app.core.security import get_password_hash
-from datetime import datetime, timedelta
-import random
 
 
 def init_database():
@@ -78,11 +78,11 @@ def insert_sample_data():
         
         # ========== 积分规则 ==========
         point_rules = [
-            PointRule(id=1, source="scan", name="扫码发现", points=30, description="上传未标注的临期食品"),
-            PointRule(id=2, source="purchase", name="购买商品", points=10, description="每购买一次商品"),
-            PointRule(id=3, source="challenge_complete", name="完成挑战", points=100, description="完成一个环保挑战"),
-            PointRule(id=4, source="audit_approved", name="审核通过", points=20, description="扫码记录审核通过"),
-            PointRule(id=5, source="share", name="分享商品", points=5, description="分享商品给好友"),
+            PointRule(id=1, rule_type="scan", rule_name="扫码发现", points=30, description="上传未标注的临期食品"),
+            PointRule(id=2, rule_type="purchase", rule_name="购买商品", points=10, description="每购买一次商品"),
+            PointRule(id=3, rule_type="challenge_complete", rule_name="完成挑战", points=100, description="完成一个环保挑战"),
+            PointRule(id=4, rule_type="audit_approved", rule_name="审核通过", points=20, description="扫码记录审核通过"),
+            PointRule(id=5, rule_type="share", rule_name="分享商品", points=5, description="分享商品给好友"),
         ]
         db.add_all(point_rules)
         db.flush()
@@ -121,14 +121,14 @@ def insert_sample_data():
         
         # ========== 测试食品 ==========
         foods_data = [
-            ("6901234567890", "全麦吐司面包", 1, "麦多面包坊", 500, 9.9, "甜", ["清淡"]),
-            ("6901234567891", "鲜牛奶 250ml", 2, "伊利", 250, 6.5, "甜", []),
-            ("6901234567892", "有机生菜 300g", 3, "田园牧歌", 300, 5.8, "淡", ["清淡"]),
-            ("6901234567893", "新鲜草莓 200g", 4, "红颜草莓", 200, 12.8, "甜", []),
-            ("6901234567894", "鸡胸肉 250g", 5, "正大食品", 250, 15.9, "淡", []),
+            ("6901234567890", "全麦吐司面包", 1, "麦多面包坊", 500, 9.9),
+            ("6901234567891", "鲜牛奶 250ml", 2, "伊利", 250, 6.5),
+            ("6901234567892", "有机生菜 300g", 3, "田园牧歌", 300, 5.8),
+            ("6901234567893", "新鲜草莓 200g", 4, "红颜草莓", 200, 12.8),
+            ("6901234567894", "鸡胸肉 250g", 5, "正大食品", 250, 15.9),
         ]
         foods = []
-        for barcode, name, type_id, brand, weight, price, flavor, tags in foods_data:
+        for barcode, name, type_id, brand, weight, price in foods_data:
             food = Food(
                 barcode=barcode,
                 name=name,
@@ -142,16 +142,17 @@ def insert_sample_data():
         print(f"✓ 插入 {len(foods)} 种食品")
         
         # ========== 店铺食品 ==========
-        import datetime as dt
         shop_foods = []
         for i, food in enumerate(foods):
+            original_price = int(food.default_weight.replace("g", "")) * 0.02
+            discount_price = original_price * 0.6  # 6折
             shop_food = ShopFood(
                 shop_id=shop.id,
                 food_id=food.id,
                 shelf_position=f"A{1+i}-2",
                 quantity=random.randint(5, 20),
-                original_price=int(food.default_weight.replace("g", "")) * 0.02,  # 模拟原价
-                discount_price=foods_data[i][6],
+                original_price=original_price,
+                discount_price=discount_price,
                 discount_type="clearance",
                 expiry_date=datetime.now().date() + timedelta(days=random.randint(1, 5)),
                 risk_level=random.choice(["low", "medium", "high"]),
@@ -219,7 +220,7 @@ def insert_sample_data():
             customer_id=customer.id,
             shop_food_id=shop_foods[0].id,
             quantity=2,
-            total_price=shop_foods[0].discount_price * 2,
+            total_price=float(shop_foods[0].discount_price) * 2,
             status="completed"
         )
         db.add(order)
