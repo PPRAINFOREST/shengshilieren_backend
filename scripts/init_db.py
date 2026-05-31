@@ -182,7 +182,7 @@ def insert_sample_data():
                 id=1,
                 name="救粮新手",
                 description="累计救粮1kg",
-                challenge_type="food_rescue",
+                challenge_type="food",
                 target=1.0,
                 unit="kg",
                 reward_points=50,
