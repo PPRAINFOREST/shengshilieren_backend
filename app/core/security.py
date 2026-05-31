@@ -8,39 +8,33 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+import hashlib
+import secrets
 
 from app.core.config import settings
 
-# 密码加密上下文
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def get_password_hash(password: str) -> str:
+    """
+    获取密码哈希值 (使用 PBKDF2-SHA256)
+    """
+    salt = secrets.token_hex(16)
+    hash_obj = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), 100000)
+    return f"{salt}${hash_obj.hex()}"
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """
     验证密码
-
-    Args:
-        plain_password: 明文密码
-        hashed_password: 加密密码
-
-    Returns:
-        bool: 是否匹配
     """
-    return pwd_context.verify(plain_password, hashed_password)
-
-
-def get_password_hash(password: str) -> str:
-    """
-    获取密码哈希值
-
-    Args:
-        password: 明文密码
-
-    Returns:
-        str: 加密后的密码
-    """
-    return pwd_context.hash(password)
+    try:
+        if '$' not in hashed_password:
+            return False
+        salt, stored_hash = hashed_password.split('$')
+        hash_obj = hashlib.pbkdf2_hmac('sha256', plain_password.encode('utf-8'), salt.encode('utf-8'), 100000)
+        return secrets.compare_digest(hash_obj.hex(), stored_hash)
+    except Exception:
+        return False
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
