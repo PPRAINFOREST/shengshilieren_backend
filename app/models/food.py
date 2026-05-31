@@ -109,3 +109,4 @@ class ShopFood(Base):
     # 关联
     shop = relationship("Shop", back_populates="shop_foods")
     food = relationship("Food", back_populates="shop_foods")
+    orders = relationship("Order", back_populates="shop_food")
