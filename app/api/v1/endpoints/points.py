@@ -20,7 +20,7 @@ async def get_balance(
 ):
     """获取积分余额"""
     try:
-        balance = get_point_balance(db, current_user["id"])
+        balance = get_point_balance(db, current_user["user"].id)
         return success_response(data=balance)
     except ValueError as e:
         return error_response(str(e))

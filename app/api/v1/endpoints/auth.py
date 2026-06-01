@@ -8,7 +8,7 @@ from datetime import timedelta
 
 from app.core.database import get_db
 from app.core.config import settings
-from app.core.security import create_access_token, verify_password
+from app.core.security import create_access_token, verify_password, get_password_hash, decode_access_token
 from app.models.user import Customer, Merchant
 from app.schemas.user import CustomerCreate, MerchantCreate, CustomerResponse, MerchantResponse, LoginResponse
 from app.schemas.response import success_response, error_response
@@ -23,9 +23,7 @@ def get_current_user(
     db: Session = Depends(get_db)
 ):
     """获取当前登录用户"""
-    from app.core.security import decode_token
-    
-    payload = decode_token(token)
+    payload = decode_access_token(token)
     if not payload:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -72,7 +70,7 @@ def register_customer(
     customer = Customer(
         phone=data.phone,
         nickname=data.nickname,
-        hashed_password=data.password  # 实际应该在service层加密
+        password_hash=get_password_hash(data.password)
     )
     
     db.add(customer)
@@ -105,7 +103,8 @@ def register_merchant(
         store_name=data.store_name,
         store_type_id=data.store_type_id,
         contact_phone=data.contact_phone,
-        verified=False
+        verified=False,
+        password_hash=get_password_hash(data.password)
     )
     
     db.add(merchant)
@@ -130,8 +129,8 @@ def login(
     ).first()
     
     if customer:
-        # 验证密码（实际应该用 bcrypt）
-        if customer.hashed_password != form_data.password:
+        # 验证密码
+        if not verify_password(form_data.password, customer.password_hash):
             return error_response("密码错误")
         
         # 生成Token
@@ -155,7 +154,7 @@ def login(
     ).first()
     
     if merchant:
-        if merchant.hashed_password != form_data.password:
+        if not verify_password(form_data.password, merchant.password_hash):
             return error_response("密码错误")
         
         access_token = create_access_token(

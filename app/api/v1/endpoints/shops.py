@@ -23,8 +23,7 @@ async def get_shop_types(db: Session = Depends(get_db)):
         "id": t.id,
         "name": t.name,
         "description": t.description,
-        "icon": t.icon,
-        "color": t.color
+        "icon": t.icon
     } for t in types])
 
 
