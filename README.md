@@ -19,24 +19,20 @@
 - [Docker](https://docs.docker.com/get-docker/) 已安装
 - [Docker Compose](https://docs.docker.com/compose/install/) 已安装
 
-### 启动服务（一条命令）
+### 启动服务（完整版）
 
 ```bash
-git clone https://github.com/PPRAINFOREST/shengshilieren_backend.git
-cd shengshilieren_backend
-
-# 复制配置
-cp .env.example .env
-
 # 启动所有服务（MySQL + Redis + 后端API）
-docker-compose up -d
+docker-compose up -d --build
+
+# 启动数据库管理工具（phpMyAdmin + Redis Commander）
+docker-compose --profile tools up -d
+
+# 初始化数据库（首次部署时）
+docker-compose exec -e DATABASE_URL="mysql+pymysql://root:${MYSQL_ROOT_PASSWORD}@mysql:3306/food_saver_hunter" backend python scripts/init_db.py
 ```
 
-### 初始化数据库
-
-```bash
-docker-compose exec backend python scripts/init_db.py
-```
+> **说明**：phpMyAdmin 和 Redis Commander 使用 `profiles` 配置，默认不启动。如需管理数据库或缓存，需要单独运行上面的 `--profile tools` 命令。
 
 ### 访问服务
 
@@ -44,8 +40,8 @@ docker-compose exec backend python scripts/init_db.py
 |------|------|
 | API | http://localhost:8000 |
 | Swagger 文档 | http://localhost:8000/docs |
-| phpMyAdmin (数据库管理) | http://localhost:8080 |
-| Redis Admin (缓存管理) | http://localhost:8081 |
+| phpMyAdmin (数据库管理) | http://localhost:8082 |
+| Redis Commander (缓存管理) | http://localhost:8081 |
 
 ---
 
