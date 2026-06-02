@@ -19,8 +19,9 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"
     PORT: int = 8000
 
-    # 数据库配置（支持直接传 DATABASE_URL）
-    DATABASE_URL: str = ""  # 优先使用此配置，如 mysql+pymysql://...
+    # 数据库配置
+    DATABASE_URL: str = ""  # 优先使用此配置，如 mysql+pymysql://... 或 dm+pymysql://...
+    DB_TYPE: str = "mysql"  # 数据库类型：mysql 或 dameng
     DB_HOST: str = "localhost"
     DB_PORT: int = 3306
     DB_USER: str = "root"
@@ -32,11 +33,19 @@ class Settings(BaseSettings):
         """数据库连接 URL"""
         if self.DATABASE_URL:
             return self.DATABASE_URL
+        
+        if self.DB_TYPE == "dameng":
+            # 达梦数据库连接（使用 dm+pymysql 方言）
+            return f"dm+pymysql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+        
+        # MySQL 数据库连接
         return f"mysql+pymysql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
 
     @property
     def DATABASE_URL_ASYNC(self) -> str:
         """异步数据库连接 URL"""
+        if self.DB_TYPE == "dameng":
+            return f"dm+aiomysql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
         return f"mysql+aiomysql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
 
     # Redis 配置
