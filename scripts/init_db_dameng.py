@@ -2,14 +2,23 @@
 达梦数据库初始化脚本
 
 使用方法：
-    # 设置环境变量
-    export DB_TYPE=dameng
-    export DB_HOST=localhost
-    export DB_PORT=5236
-    export DB_USER=FOODSAVER
-    export DB_PASSWORD=Ywwhxxtwtyty121!
-    export DB_NAME=FOODSAVER
+    # 在 Mac 终端设置环境变量并运行
+    cd ~/Desktop/harmony/backend
     
+    # 方式1: 使用 docker exec
+    docker exec -e DB_TYPE=dameng \
+               -e DB_HOST=host.docker.internal \
+               -e DB_PORT=5236 \
+               -e DB_USER=FOODSAVER \
+               -e DB_PASSWORD='Ywwhxxtwtyty121!' \
+               -e DB_NAME=FOODSAVER \
+               backend-backend \
+               python scripts/init_db_dameng.py
+               
+    # 方式2: 进入 backend 容器后运行
+    docker exec -it backend-backend bash
+    DB_TYPE=dameng DB_HOST=host.docker.internal DB_PORT=5236 \
+    DB_USER=FOODSAVER DB_PASSWORD='Ywwhxxtwtyty121!' DB_NAME=FOODSAVER \
     python scripts/init_db_dameng.py
 """
 import sys
@@ -19,9 +28,8 @@ from datetime import datetime
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Text, Float, Enum as SQLEnum
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Text, Float
 from sqlalchemy.orm import declarative_base, sessionmaker
-from sqlalchemy.dialects import mysql
 
 from app.core.config import settings
 from app.core.security import get_password_hash
