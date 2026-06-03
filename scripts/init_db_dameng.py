@@ -1,151 +1,109 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 达梦数据库初始化脚本
-
-使用方法：
-    # 在 Mac 终端设置环境变量并运行
-    cd ~/Desktop/harmony/backend
-    
-    # 方式1: 使用 docker exec
-    docker exec -e DB_TYPE=dameng \
-               -e DB_HOST=host.docker.internal \
-               -e DB_PORT=5236 \
-               -e DB_USER=FOODSAVER \
-               -e DB_PASSWORD='Ywwhxxtwtyty121!' \
-               -e DB_NAME=FOODSAVER \
-               backend-backend \
-               python scripts/init_db_dameng.py
-               
-    # 方式2: 进入 backend 容器后运行
-    docker exec -it backend-backend bash
-    DB_TYPE=dameng DB_HOST=host.docker.internal DB_PORT=5236 \
-    DB_USER=FOODSAVER DB_PASSWORD='Ywwhxxtwtyty121!' DB_NAME=FOODSAVER \
-    python scripts/init_db_dameng.py
+用于初始化剩食猎人项目的达梦数据库
 """
-import sys
-import os
-from datetime import datetime
 
-# 添加项目根目录到路径
+import os
+import sys
+import datetime
+from hashlib import sha256
+
+# 添加项目路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Text, Float
-from sqlalchemy.orm import declarative_base, sessionmaker
-
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, Text, Float, Date, Index, ForeignKey, BigInteger
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import NullPool
+from passlib.context import CryptContext
 from app.core.config import settings
-from app.core.security import get_password_hash
 
-# 创建基类
 Base = declarative_base()
 
-
-class ShopType(Base):
-    """店铺类型表"""
-    __tablename__ = "shop_types"
-
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(50), nullable=False)
-    description = Column(String(255))
-    icon = Column(String(50))
-    sort_order = Column(Integer, default=0)
-    created_at = Column(DateTime, default=datetime.now)
+# 密码加密
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
-class FoodType(Base):
-    """食品类型表"""
-    __tablename__ = "food_types"
-
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(50), nullable=False)
-    icon = Column(String(50))
-    color = Column(String(20))
-    created_at = Column(DateTime, default=datetime.now)
+def get_password_hash(password: str) -> str:
+    """密码哈希"""
+    return pwd_context.hash(password)
 
 
-class PointRule(Base):
-    """积分规则表"""
-    __tablename__ = "point_rules"
-
-    id = Column(Integer, primary_key=True, index=True)
-    rule_type = Column(String(50), unique=True, nullable=False)
-    rule_name = Column(String(100), nullable=False)
-    points = Column(Integer, nullable=False, default=0)
-    description = Column(String(255))
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.now)
-
-
-class Customer(Base):
-    """客户用户表"""
-    __tablename__ = "customers"
-
-    id = Column(Integer, primary_key=True, index=True)
-    phone = Column(String(20), unique=True, index=True, nullable=False)
-    password_hash = Column(String(255), nullable=False)
-    nickname = Column(String(50))
-    avatar = Column(String(255))
-    points = Column(Integer, default=0)
-    carbon_saved = Column(Integer, default=0)
-    food_saved = Column(Integer, default=0)
-    preferences = Column(String(500))
-    hometown = Column(String(100))
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.now)
-    updated_at = Column(DateTime, default=datetime.now)
-
+# ============ 表模型定义 ============
 
 class Merchant(Base):
-    """商家用户表"""
+    """商家表"""
     __tablename__ = "merchants"
 
-    id = Column(Integer, primary_key=True, index=True)
-    phone = Column(String(20), unique=True, index=True, nullable=False)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    phone = Column(String(20), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
     store_name = Column(String(100), nullable=False)
     store_type_id = Column(Integer)
     address = Column(String(255))
     latitude = Column(Integer)
     longitude = Column(Integer)
-    contact_phone = Column(String(20))
-    business_hours = Column(String(100))
-    business_license = Column(String(255))
-    verified = Column(Boolean, default=False)
-    rating = Column(Integer, default=500)
-    total_orders = Column(Integer, default=0)
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.now)
-    updated_at = Column(DateTime, default=datetime.now)
+    verified = Column(Integer, default=0)  # 达梦兼容：0/1 代替布尔
+    verification_status = Column(String(20), default="pending")
+    created_at = Column(DateTime, default=datetime.datetime.now)
+    updated_at = Column(DateTime, default=datetime.datetime.now)
+
+
+class ShopType(Base):
+    """店铺类型表"""
+    __tablename__ = "shop_types"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(50), nullable=False)
+    description = Column(String(255))
+    icon = Column(String(50))
+    sort_order = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.datetime.now)
 
 
 class Shop(Base):
     """店铺表"""
     __tablename__ = "shops"
 
-    id = Column(Integer, primary_key=True, index=True)
-    merchant_id = Column(Integer, nullable=False, index=True)
-    shop_type_id = Column(Integer)
-    name = Column(String(100), nullable=False)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    merchant_id = Column(Integer, ForeignKey("merchants.id"), nullable=False, index=True)
+    shop_type_id = Column(Integer, ForeignKey("shop_types.id"), nullable=False)
+    name = Column(String(100), nullable=False)  # 店铺名称
     address = Column(String(255))
     latitude = Column(Integer)
     longitude = Column(Integer)
     contact_phone = Column(String(20))
     business_hours = Column(String(100))
     description = Column(String(500))
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.now)
-    updated_at = Column(DateTime, default=datetime.now)
+    is_active = Column(Integer, default=1)  # 达梦兼容：0/1 代替布尔
+    created_at = Column(DateTime, default=datetime.datetime.now)
+    updated_at = Column(DateTime, default=datetime.datetime.now)
+
+
+class FoodType(Base):
+    """食品类型表"""
+    __tablename__ = "food_types"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(50), nullable=False)
+    icon = Column(String(50))
+    color = Column(String(20))
+    created_at = Column(DateTime, default=datetime.datetime.now)
 
 
 class Food(Base):
     """食品表"""
     __tablename__ = "foods"
 
-    id = Column(Integer, primary_key=True, index=True)
-    shop_id = Column(Integer, nullable=False, index=True)
-    food_type_id = Column(Integer)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    shop_id = Column(Integer, ForeignKey("shops.id"), nullable=False, index=True)
+    food_type_id = Column(Integer, ForeignKey("food_types.id"), nullable=False)
     name = Column(String(100), nullable=False)
-    original_price = Column(Integer)
+    original_price = Column(Integer, nullable=False)  # 价格单位：分
     discount_price = Column(Integer)
-    discount_rate = Column(Integer)
+    discount_rate = Column(Integer, default=0)
     original_expiry_date = Column(DateTime)
     discount_expiry_date = Column(DateTime)
     stock = Column(Integer, default=0)
@@ -153,259 +111,162 @@ class Food(Base):
     image_url = Column(String(500))
     description = Column(String(500))
     tags = Column(String(255))
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.now)
-    updated_at = Column(DateTime, default=datetime.now)
+    is_active = Column(Integer, default=1)  # 达梦兼容
+    created_at = Column(DateTime, default=datetime.datetime.now)
+    updated_at = Column(DateTime, default=datetime.datetime.now)
 
 
-class FoodFlavorTag(Base):
-    """食品口味标签表"""
-    __tablename__ = "food_flavor_tags"
+class Customer(Base):
+    """客户表"""
+    __tablename__ = "customers"
 
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(50), nullable=False, unique=True)
-    created_at = Column(DateTime, default=datetime.now)
-
-
-class Order(Base):
-    """订单表"""
-    __tablename__ = "orders"
-
-    id = Column(Integer, primary_key=True, index=True)
-    order_no = Column(String(50), unique=True, nullable=False)
-    customer_id = Column(Integer, nullable=False, index=True)
-    shop_id = Column(Integer, nullable=False)
-    total_amount = Column(Integer, default=0)
-    actual_amount = Column(Integer, default=0)
-    points_discount = Column(Integer, default=0)
-    status = Column(String(20), default="pending")
-    payment_method = Column(String(20))
-    payment_time = Column(DateTime)
-    pickup_code = Column(String(20))
-    pickup_time = Column(DateTime)
-    created_at = Column(DateTime, default=datetime.now)
-    updated_at = Column(DateTime, default=datetime.now)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    phone = Column(String(20), unique=True, nullable=False, index=True)
+    password_hash = Column(String(255), nullable=False)
+    nickname = Column(String(50))
+    avatar_url = Column(String(500))
+    points = Column(Integer, default=0)
+    carbon_saved = Column(Integer, default=0)  # 单位：克
+    food_saved = Column(Integer, default=0)   # 单位：克
+    level = Column(String(20), default="bronze")
+    created_at = Column(DateTime, default=datetime.datetime.now)
+    updated_at = Column(DateTime, default=datetime.datetime.now)
 
 
-class OrderItem(Base):
-    """订单项表"""
-    __tablename__ = "order_items"
+class PointRule(Base):
+    """积分规则表"""
+    __tablename__ = "point_rules"
 
-    id = Column(Integer, primary_key=True, index=True)
-    order_id = Column(Integer, nullable=False, index=True)
-    food_id = Column(Integer, nullable=False)
-    quantity = Column(Integer, default=1)
-    unit_price = Column(Integer)
-    subtotal = Column(Integer)
-    created_at = Column(DateTime, default=datetime.now)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    rule_type = Column(String(50), nullable=False, index=True)
+    rule_name = Column(String(50), nullable=False)
+    points = Column(Integer, nullable=False)
+    description = Column(String(255))
+    is_active = Column(Integer, default=1)
+    created_at = Column(DateTime, default=datetime.datetime.now)
 
 
-class UserScan(Base):
-    """用户扫码记录表"""
-    __tablename__ = "user_scans"
+class WasteReport(Base):
+    """食品浪费报告表"""
+    __tablename__ = "waste_reports"
 
-    id = Column(Integer, primary_key=True, index=True)
-    customer_id = Column(Integer, nullable=False, index=True)
-    shop_id = Column(Integer)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    merchant_id = Column(Integer, ForeignKey("merchants.id"), nullable=False, index=True)
+    food_type_id = Column(Integer, ForeignKey("food_types.id"))
     food_name = Column(String(100))
-    barcode = Column(String(100))
-    original_expiry_date = Column(DateTime)
-    image_url = Column(String(500))
-    latitude = Column(Integer)
-    longitude = Column(Integer)
-    status = Column(String(20), default="pending")
-    reject_reason = Column(String(255))
-    created_at = Column(DateTime, default=datetime.now)
-
-
-class HunterPoint(Base):
-    """用户积分记录表"""
-    __tablename__ = "hunter_points"
-
-    id = Column(Integer, primary_key=True, index=True)
-    customer_id = Column(Integer, nullable=False, index=True)
-    rule_id = Column(Integer)
-    points = Column(Integer, nullable=False)
-    balance = Column(Integer)
-    source_type = Column(String(50))
-    source_id = Column(String(50))
-    description = Column(String(255))
-    created_at = Column(DateTime, default=datetime.now)
-
-
-class PointSource(Base):
-    """积分来源表"""
-    __tablename__ = "point_sources"
-
-    id = Column(Integer, primary_key=True, index=True)
-    customer_id = Column(Integer, nullable=False, index=True)
-    source_type = Column(String(50), nullable=False)
-    source_id = Column(String(50))
-    points = Column(Integer, nullable=False)
-    created_at = Column(DateTime, default=datetime.now)
-
-
-class Challenge(Base):
-    """挑战表"""
-    __tablename__ = "challenges"
-
-    id = Column(Integer, primary_key=True, index=True)
-    title = Column(String(100), nullable=False)
+    quantity = Column(Integer, default=0)
+    unit = Column(String(20))
+    waste_type = Column(String(20))  # expired/damaged/unsold
+    photo_url = Column(String(500))
     description = Column(String(500))
-    challenge_type = Column(String(50))
-    target_value = Column(Integer)
-    target_unit = Column(String(20))
-    reward_points = Column(Integer, default=0)
-    badge_id = Column(Integer)
-    start_date = Column(DateTime)
-    end_date = Column(DateTime)
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.now)
+    status = Column(String(20), default="pending")
+    created_at = Column(DateTime, default=datetime.datetime.now)
+    updated_at = Column(DateTime, default=datetime.datetime.now)
 
 
-class UserChallenge(Base):
-    """用户挑战表"""
-    __tablename__ = "user_challenges"
+class FavoriteMerchant(Base):
+    """商家收藏表"""
+    __tablename__ = "favorite_merchants"
 
-    id = Column(Integer, primary_key=True, index=True)
-    customer_id = Column(Integer, nullable=False, index=True)
-    challenge_id = Column(Integer, nullable=False)
-    current_value = Column(Integer, default=0)
-    status = Column(String(20), default="ongoing")
-    start_time = Column(DateTime)
-    complete_time = Column(DateTime)
-    created_at = Column(DateTime, default=datetime.now)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False, index=True)
+    merchant_id = Column(Integer, ForeignKey("merchants.id"), nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.datetime.now)
 
 
-class Badge(Base):
-    """徽章表"""
-    __tablename__ = "badges"
+class UserAchievement(Base):
+    """用户成就表"""
+    __tablename__ = "user_achievements"
 
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(50), nullable=False)
-    icon = Column(String(100))
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False, index=True)
+    achievement_type = Column(String(50), nullable=False)
+    achievement_name = Column(String(100))
     description = Column(String(255))
-    level = Column(String(20))
-    requirement = Column(String(255))
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.now)
-
-
-class UserBadge(Base):
-    """用户徽章表"""
-    __tablename__ = "user_badges"
-
-    id = Column(Integer, primary_key=True, index=True)
-    customer_id = Column(Integer, nullable=False, index=True)
-    badge_id = Column(Integer, nullable=False)
-    earned_at = Column(DateTime, default=datetime.now)
+    earned_at = Column(DateTime, default=datetime.datetime.now)
 
 
 class Notification(Base):
     """通知表"""
     __tablename__ = "notifications"
 
-    id = Column(Integer, primary_key=True, index=True)
-    customer_id = Column(Integer, index=True)
-    merchant_id = Column(Integer, index=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    customer_id = Column(Integer, ForeignKey("customers.id"), index=True)
+    merchant_id = Column(Integer, ForeignKey("merchants.id"), index=True)
     title = Column(String(100))
     content = Column(String(500))
     notification_type = Column(String(50))
-    is_read = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.now)
+    is_read = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.datetime.now)
 
 
-class CustomerPreference(Base):
-    """客户偏好表"""
-    __tablename__ = "customer_preferences"
+class VerificationClaim(Base):
+    """核销claim表"""
+    __tablename__ = "verification_claims"
 
-    id = Column(Integer, primary_key=True, index=True)
-    customer_id = Column(Integer, unique=True, nullable=False, index=True)
-    discount_threshold = Column(Integer, default=30)
-    preferred_distance = Column(Integer, default=3000)
-    notification_enabled = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.now)
-    updated_at = Column(DateTime, default=datetime.now)
-
-
-class CustomerCategoryPreference(Base):
-    """客户分类偏好表"""
-    __tablename__ = "customer_category_preferences"
-
-    id = Column(Integer, primary_key=True, index=True)
-    customer_id = Column(Integer, nullable=False, index=True)
-    food_type_id = Column(Integer, nullable=False, index=True)
-    weight = Column(Integer, default=50)
-    created_at = Column(DateTime, default=datetime.now)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    claim_code = Column(String(50), unique=True, nullable=False, index=True)
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
+    merchant_id = Column(Integer, ForeignKey("merchants.id"), nullable=False)
+    food_id = Column(Integer, ForeignKey("foods.id"), nullable=False)
+    status = Column(String(20), default="pending")  # pending/used/expired/cancelled
+    created_at = Column(DateTime, default=datetime.datetime.now)
+    used_at = Column(DateTime)
+    expires_at = Column(DateTime)
 
 
-class CustomerManualPreference(Base):
-    """客户手动偏好表"""
-    __tablename__ = "customer_manual_preferences"
-
-    id = Column(Integer, primary_key=True, index=True)
-    customer_id = Column(Integer, nullable=False, index=True)
-    preference_type = Column(String(20))
-    preference_value = Column(String(100))
-    created_at = Column(DateTime, default=datetime.now)
+def drop_all_tables(engine):
+    """删除所有表 - 简化为空函数"""
+    # 达梦表删除通过外部 disql 命令执行
+    print("✓ 跳过删除旧表（需要手动删除或重建数据库）")
 
 
-class FoodRecommendation(Base):
-    """食品推荐表"""
-    __tablename__ = "food_recommendations"
-
-    id = Column(Integer, primary_key=True, index=True)
-    customer_id = Column(Integer, nullable=False, index=True)
-    food_id = Column(Integer, nullable=False)
-    score = Column(Integer)
-    reason = Column(String(255))
-    created_at = Column(DateTime, default=datetime.now)
-
-
-class RecommendationFeedback(Base):
-    """推荐反馈表"""
-    __tablename__ = "recommendation_feedbacks"
-
-    id = Column(Integer, primary_key=True, index=True)
-    recommendation_id = Column(Integer, nullable=False, index=True)
-    customer_id = Column(Integer, nullable=False, index=True)
-    feedback_type = Column(String(20))
-    created_at = Column(DateTime, default=datetime.now)
-
-
-class CustomerFlavorPreference(Base):
-    """客户口味偏好表"""
-    __tablename__ = "customer_flavor_preferences"
-
-    id = Column(Integer, primary_key=True, index=True)
-    customer_id = Column(Integer, nullable=False, index=True)
-    flavor_tag_id = Column(Integer, nullable=False, index=True)
-    weight = Column(Integer, default=50)
-    created_at = Column(DateTime, default=datetime.now)
-
-
-def init_database():
-    """初始化数据库表"""
-    # 创建引擎
-    engine = create_engine(
-        settings.DATABASE_URL_COMPUTED,
-        pool_pre_ping=True,
-        echo=settings.DEBUG,
-    )
+def reset_sequences(engine):
+    """重置所有序列"""
+    from sqlalchemy import text
     
-    # 创建所有表
+    with engine.connect() as conn:
+        # 删除并重建常用序列
+        sequences = [
+            "MERCHANTS_SEQ",
+            "SHOP_TYPES_SEQ", 
+            "SHOPS_SEQ",
+            "FOOD_TYPES_SEQ",
+            "FOODS_SEQ",
+            "CUSTOMERS_SEQ",
+            "POINT_RULES_SEQ",
+            "WASTE_REPORTS_SEQ",
+            "FAVORITE_MERCHANTS_SEQ",
+            "USER_ACHIEVEMENTS_SEQ",
+            "NOTIFICATIONS_SEQ",
+            "VERIFICATION_CLAIMS_SEQ",
+        ]
+        
+        for seq in sequences:
+            try:
+                conn.execute(text(f'DROP SEQUENCE "{seq}" CASCADE'))
+            except:
+                pass
+        
+        for seq in sequences:
+            try:
+                conn.execute(text(f'CREATE SEQUENCE "{seq}" START WITH 1 INCREMENT BY 1 NOMAXVALUE NOCYCLE'))
+            except:
+                pass
+        
+        conn.commit()
+    
+    print("✓ 序列已重置")
+
+
+def init_database(engine):
+    """创建所有表"""
     Base.metadata.create_all(bind=engine)
-    print("✓ 数据库表创建完成！")
-    
-    return engine
+    print("✓ 数据库表创建完成")
 
 
-def insert_sample_data():
+def insert_sample_data(engine):
     """插入示例数据"""
-    engine = create_engine(
-        settings.DATABASE_URL_COMPUTED,
-        pool_pre_ping=True,
-    )
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     db = SessionLocal()
     
@@ -414,11 +275,11 @@ def insert_sample_data():
         
         # ========== 店铺类型 ==========
         shop_types = [
-            ShopType(id=1, name="便利店", icon="store", description="24小时便利店"),
-            ShopType(id=2, name="超市", icon="supermarket", description="大型超市"),
-            ShopType(id=3, name="面包店", icon="bakery", description="烘焙面包店"),
-            ShopType(id=4, name="水果店", icon="fruit", description="新鲜水果店"),
-            ShopType(id=5, name="奶茶店", icon="tea", description="饮品店"),
+            ShopType(name="便利店", description="24小时便利店", icon="store", sort_order=0),
+            ShopType(name="超市", description="大型超市", icon="supermarket", sort_order=1),
+            ShopType(name="面包店", description="烘焙面包店", icon="bakery", sort_order=2),
+            ShopType(name="水果店", description="新鲜水果店", icon="fruit", sort_order=3),
+            ShopType(name="奶茶店", description="饮品店", icon="tea", sort_order=4),
         ]
         db.add_all(shop_types)
         db.flush()
@@ -426,14 +287,14 @@ def insert_sample_data():
         
         # ========== 食品类型 ==========
         food_types = [
-            FoodType(id=1, name="面包", icon="bread", color="#FFE4B5"),
-            FoodType(id=2, name="乳制品", icon="milk", color="#87CEEB"),
-            FoodType(id=3, name="蔬菜", icon="vegetable", color="#90EE90"),
-            FoodType(id=4, name="水果", icon="fruit", color="#FFB6C1"),
-            FoodType(id=5, name="肉类", icon="meat", color="#F5DEB3"),
-            FoodType(id=6, name="饮料", icon="beverage", color="#E6E6FA"),
-            FoodType(id=7, name="零食", icon="snack", color="#FFDAB9"),
-            FoodType(id=8, name="熟食", icon="cooked", color="#DDA0DD"),
+            FoodType(name="面包", icon="bread", color="#FFE4B5"),
+            FoodType(name="乳制品", icon="milk", color="#87CEEB"),
+            FoodType(name="蔬菜", icon="vegetable", color="#90EE90"),
+            FoodType(name="水果", icon="fruit", color="#FFB6C1"),
+            FoodType(name="肉类", icon="meat", color="#F5DEB3"),
+            FoodType(name="饮料", icon="beverage", color="#E6E6FA"),
+            FoodType(name="零食", icon="snack", color="#FFDAB9"),
+            FoodType(name="熟食", icon="cooked", color="#DDA0DD"),
         ]
         db.add_all(food_types)
         db.flush()
@@ -441,11 +302,11 @@ def insert_sample_data():
         
         # ========== 积分规则 ==========
         point_rules = [
-            PointRule(id=1, rule_type="scan", rule_name="扫码发现", points=30, description="上传未标注的临期食品"),
-            PointRule(id=2, rule_type="purchase", rule_name="购买商品", points=10, description="每购买一次商品"),
-            PointRule(id=3, rule_type="challenge_complete", rule_name="完成挑战", points=100, description="完成一个环保挑战"),
-            PointRule(id=4, rule_type="audit_approved", rule_name="审核通过", points=20, description="扫码记录审核通过"),
-            PointRule(id=5, rule_type="share", rule_name="分享商品", points=5, description="分享商品给好友"),
+            PointRule(rule_type="scan", rule_name="扫码发现", points=30, description="上传未标注的临期食品"),
+            PointRule(rule_type="purchase", rule_name="购买商品", points=10, description="每购买一次商品"),
+            PointRule(rule_type="challenge_complete", rule_name="完成挑战", points=100, description="完成一个环保挑战"),
+            PointRule(rule_type="audit_approved", rule_name="审核通过", points=20, description="扫码记录审核通过"),
+            PointRule(rule_type="share", rule_name="分享商品", points=5, description="分享商品给好友"),
         ]
         db.add_all(point_rules)
         db.flush()
@@ -460,11 +321,11 @@ def insert_sample_data():
             address="北京市朝阳区建国路88号",
             latitude=398908,
             longitude=1163974,
-            verified=True,
+            verified=1,
         )
         db.add(merchant)
         db.flush()
-        print("✓ 插入测试商家")
+        print(f"✓ 插入测试商家 (ID: {merchant.id})")
         
         # ========== 测试店铺 ==========
         shop = Shop(
@@ -476,11 +337,11 @@ def insert_sample_data():
             longitude=1163974,
             contact_phone="13800138001",
             business_hours="24小时",
-            is_active=True,
+            is_active=1,
         )
         db.add(shop)
         db.flush()
-        print("✓ 插入测试店铺")
+        print(f"✓ 插入测试店铺 (ID: {shop.id})")
         
         # ========== 测试食品 ==========
         foods = [
@@ -491,8 +352,8 @@ def insert_sample_data():
                 original_price=1500,
                 discount_price=750,
                 discount_rate=50,
-                original_expiry_date=datetime.now(),
-                discount_expiry_date=datetime.now(),
+                original_expiry_date=datetime.datetime.now(),
+                discount_expiry_date=datetime.datetime.now(),
                 stock=10,
                 unit="个",
                 tags="面包,烘焙",
@@ -504,8 +365,8 @@ def insert_sample_data():
                 original_price=800,
                 discount_price=400,
                 discount_rate=50,
-                original_expiry_date=datetime.now(),
-                discount_expiry_date=datetime.now(),
+                original_expiry_date=datetime.datetime.now(),
+                discount_expiry_date=datetime.datetime.now(),
                 stock=20,
                 unit="盒",
                 tags="牛奶,乳制品",
@@ -517,8 +378,8 @@ def insert_sample_data():
                 original_price=600,
                 discount_price=300,
                 discount_rate=50,
-                original_expiry_date=datetime.now(),
-                discount_expiry_date=datetime.now(),
+                original_expiry_date=datetime.datetime.now(),
+                discount_expiry_date=datetime.datetime.now(),
                 stock=15,
                 unit="瓶",
                 tags="饮料,茶饮",
@@ -539,56 +400,7 @@ def insert_sample_data():
         )
         db.add(customer)
         db.flush()
-        print("✓ 插入测试客户")
-        
-        # ========== 徽章 ==========
-        badges = [
-            Badge(id=1, name="新人入门", icon="badge_newbie", description="完成首次扫码", level="bronze"),
-            Badge(id=2, name="环保先锋", icon="badge_pioneer", description="累计减碳1kg", level="silver"),
-            Badge(id=3, name="剩食猎人", icon="badge_hunter", description="累计救粮5kg", level="gold"),
-        ]
-        db.add_all(badges)
-        db.flush()
-        print(f"✓ 插入 {len(badges)} 条徽章")
-        
-        # ========== 挑战 ==========
-        challenges = [
-            Challenge(
-                id=1,
-                title="一周环保挑战",
-                description="一周内完成10次扫码",
-                challenge_type="scan",
-                target_value=10,
-                target_unit="次",
-                reward_points=100,
-                badge_id=1,
-                is_active=True,
-            ),
-            Challenge(
-                id=2,
-                title="减碳达人",
-                description="累计减碳5kg",
-                challenge_type="carbon",
-                target_value=5000,
-                target_unit="克",
-                reward_points=200,
-                badge_id=2,
-                is_active=True,
-            ),
-        ]
-        db.add_all(challenges)
-        db.flush()
-        print(f"✓ 插入 {len(challenges)} 条挑战")
-        
-        # ========== 客户偏好 ==========
-        preference = CustomerPreference(
-            customer_id=customer.id,
-            discount_threshold=30,
-            preferred_distance=3000,
-            notification_enabled=True,
-        )
-        db.add(preference)
-        print("✓ 插入客户偏好设置")
+        print(f"✓ 插入测试客户 (ID: {customer.id})")
         
         db.commit()
         print("\n✅ 所有示例数据插入完成！")
@@ -612,13 +424,30 @@ def main():
     print(f"用户: {settings.DB_USER}")
     print("=" * 50)
     
-    # 创建表
-    init_database()
+    # 创建引擎
+    engine = create_engine(
+        settings.DATABASE_URL_COMPUTED,
+        pool_pre_ping=True,
+        poolclass=NullPool,
+        echo=False,
+    )
+    
+    # 删除旧表
+    drop_all_tables(engine)
+    
+    # 重置序列
+    reset_sequences(engine)
+    
+    # 创建新表
+    init_database(engine)
     
     # 插入示例数据
-    insert_sample_data()
+    insert_sample_data(engine)
     
     print("\n✅ 达梦数据库初始化完成！")
+    print("\n测试账号:")
+    print("  商家: 13800138001 / 123456")
+    print("  客户: 13900139001 / 123456")
 
 
 if __name__ == "__main__":
